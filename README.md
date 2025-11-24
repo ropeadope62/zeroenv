@@ -33,7 +33,7 @@
   <a href="#command-reference">Command Reference</a>
 </p>
 
-![demo](./assets/usage_demo.gif)
+![demo](./assets/zeroenv_example.gif)
 
 ## Features
 
