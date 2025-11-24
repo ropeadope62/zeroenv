@@ -1,6 +1,6 @@
 <h1 align="center">
   <br>
-  <img src="./assets/zeroenv_logo.png" alt="ZeroEnv" width="600">
+  <img src="./assets/zeroenv_logo.png" alt="ZeroEnv" width="400">
 </h1>
 
 <h4 align="center">Simple, secure, and git-safe secrets management.</h4>
