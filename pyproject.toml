@@ -1,17 +1,24 @@
 [build-system]
-requires = ["setuptools>=61.0"]
+requires = ["setuptools >= 77.0.3"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "zeroenv"
 version = "0.1.0"
 authors = [
-  { name="David", email="davechadwick@gmail.com" },
+  { name="ropeadope62 (Dave C.)", email="davechadwick@gmail.com" },
 ]
-description = "Git-Safe Secrets for small teams and individuals."
+description = "Simple, secure, and git-safe secrets management.."
 readme = "README.md"
 requires-python = ">=3.8"
 classifiers = [
+    "Development Status :: 2 - Pre-Alpha",
+    "Intended Audience :: Developers",
+    "Intended Audience :: System Administrators",
+    "Topic :: Security :: Cryptography",
+    "Topic :: Software Development :: Libraries",
+    "Topic :: Utilities",
+    "Environment :: Console",
     "Programming Language :: Python :: 3",
     "License :: OSI Approved :: MIT License",
     "Operating System :: OS Independent",
@@ -25,6 +32,9 @@ dependencies = [
 [project.scripts]
 zeroenv = "zeroenv.cli:main"
 
+
+
 [project.urls]
 "Homepage" = "https://github.com/ropeadope62/zeroenv"
 "Bug Tracker" = "https://github.com/ropeadope62/zeroenv/issues"
+
