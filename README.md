@@ -15,8 +15,8 @@
   <a href="https://www.python.org/downloads/">
     <img src="https://img.shields.io/badge/python-3.8+-blue.svg">
   </a>
-  <a href="https://github.com/ropeadope62/zeroenv/actions">
-    <img src="https://github.com/ropeadope62/zeroenv/workflows/tests/badge.svg">
+  <a href="https://github.com/ropeadope62/zeroenv/actions/workflows/tests.yml">
+    <img src="https://github.com/ropeadope62/zeroenv/actions/workflows/tests.yml/badge.svg" alt="Tests">
   </a>
 </p>
 
