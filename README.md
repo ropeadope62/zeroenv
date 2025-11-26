@@ -6,9 +6,8 @@
 <h4 align="center">Simple, secure, and git-safe secrets management.</h4>
 
 <p align="center">
-  <a href="https://badge.fury.io/py/zeroenv">
-    <img src="https://badge.fury.io/py/zeroenv.svg"
-         alt="PyPI version">
+  <a href="https://pypi.org/project/zeroenv/">
+    <img src="https://img.shields.io/pypi/v/zeroenv.svg" alt="PyPI version">
   </a>
   <a href="https://github.com/ropeadope62/zeroenv/blob/main/LICENSE">
     <img src="https://img.shields.io/badge/License-MIT-yellow.svg">
