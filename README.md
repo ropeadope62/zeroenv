@@ -13,7 +13,7 @@
     <img src="https://img.shields.io/badge/License-MIT-yellow.svg">
   </a>
   <a href="https://www.python.org/downloads/">
-    <img src="https://img.shields.io/badge/python-3.8+-blue.svg">
+    <img src="https://img.shields.io/badge/python-3.10+-blue.svg">
   </a>
   <a href="https://github.com/ropeadope62/zeroenv/actions/workflows/tests.yml">
     <img src="https://github.com/ropeadope62/zeroenv/actions/workflows/tests.yml/badge.svg" alt="Tests">
@@ -293,7 +293,7 @@ zeroenv run dotnet run
 
 ## Dependencies
 
-- Python 3.8+
+- Python 3.10+
 - `click` - CLI framework
 - `rich` - Terminal formatting
 - `cryptography` - AES-256-GCM implementation
