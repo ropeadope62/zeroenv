@@ -8,6 +8,9 @@ https://github.com/ropeadope62
 import os
 import base64
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+from cryptography.hazmat.primitives import hashes
+from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
+from cryptography.hazmat.backends import default_backend
 
 
 
@@ -26,6 +29,24 @@ class ZeroEnvCrypto:
     # Implement random nonce
     
     NONCE_SIZE = 12  # 96 bits (12 bytes)
+    
+    # Security tier configurations
+    SECURITY_TIERS = {
+        'standard': {
+            'iterations': 0,  # No PBKDF2, direct key usage
+            'description': 'Fast - Direct key (development)'
+        },
+        'enhanced': {
+            'iterations': 100000,  # 100k iterations
+            'description': 'Balanced - PBKDF2-SHA256 100k iterations'
+        },
+        'max': {
+            'iterations': 500000,  # 500k iterations
+            'description': 'Maximum - PBKDF2-SHA256 500k iterations (production)'
+        }
+    }
+    
+    SALT_SIZE = 16  # 128 bits for PBKDF2 salt
     
     def __init__(self, master_key: bytes):
         """
@@ -95,6 +116,58 @@ class ZeroEnvCrypto:
             32 random bytes suitable for use as master key
         """
         return os.urandom(ZeroEnvCrypto.KEY_SIZE)
+    
+    @staticmethod
+    def generate_salt() -> bytes:
+        """
+        Generate a new random salt for PBKDF2
+        
+        Returns:
+            16 random bytes for salt
+        """
+        return os.urandom(ZeroEnvCrypto.SALT_SIZE)
+    
+    @staticmethod
+    def derive_key(master_key: bytes, tier: str = 'standard', salt: bytes = None) -> bytes:
+        """
+        Derive encryption key from master key using security tier
+        
+        Args:
+            master_key: The master key (32 bytes)
+            tier: Security tier ('standard', 'enhanced', or 'max')
+            salt: Salt for PBKDF2 (required for non-standard tiers)
+            
+        Returns:
+            Derived key (32 bytes)
+            
+        Raises:
+            ValueError: If tier is invalid or salt is missing for non-standard tiers
+        """
+        if tier not in ZeroEnvCrypto.SECURITY_TIERS:
+            raise ValueError(f"Invalid security tier: {tier}")
+        
+        iterations = ZeroEnvCrypto.SECURITY_TIERS[tier]['iterations']
+        
+        # Standard tier uses master key directly (no derivation)
+        if iterations == 0:
+            return master_key
+        
+        # Enhanced/Max tiers use PBKDF2
+        if salt is None:
+            raise ValueError(f"Salt required for '{tier}' security tier")
+        
+        if len(salt) != ZeroEnvCrypto.SALT_SIZE:
+            raise ValueError(f"Salt must be {ZeroEnvCrypto.SALT_SIZE} bytes")
+        
+        kdf = PBKDF2HMAC(
+            algorithm=hashes.SHA256(),
+            length=ZeroEnvCrypto.KEY_SIZE,
+            salt=salt,
+            iterations=iterations,
+            backend=default_backend()
+        )
+        
+        return kdf.derive(master_key)
     
     @staticmethod
     def key_to_string(key: bytes) -> str:

@@ -31,7 +31,7 @@ class SecretsStorage:
         self.secrets_path = self.directory / self.SECRETS_FILE
         self.key_path = self.directory / self.KEY_FILE
     
-    def initialize(self, master_key: bytes) -> None:
+    def initialize(self, master_key: bytes, tier: str = 'standard') -> None:
         """
         Initialize ZeroEnv in the directory
         
@@ -39,7 +39,12 @@ class SecretsStorage:
         
         Args:
             master_key: The master encryption key
+            tier: Security tier ('standard', 'enhanced', or 'max')
         """
+        # Validate tier
+        if tier not in ZeroEnvCrypto.SECURITY_TIERS:
+            raise ValueError(f"Invalid security tier: {tier}")
+        
         # Create master key string to be written to .secrets.key
         key_string = ZeroEnvCrypto.key_to_string(master_key)
         self.key_path.write_text(key_string)
@@ -48,8 +53,15 @@ class SecretsStorage:
         initial_data = {
             "version": "1.0",
             "created_at": datetime.now().isoformat(),
+            "security_tier": tier,
             "secrets": {}
         }
+        
+        # Generate and store salt for non-standard tiers
+        if tier != 'standard':
+            salt = ZeroEnvCrypto.generate_salt()
+            initial_data["salt"] = ZeroEnvCrypto.key_to_string(salt)
+        
         self.secrets_path.write_text(json.dumps(initial_data, indent=2))
     
     def is_initialized(self) -> bool:
@@ -79,6 +91,43 @@ class SecretsStorage:
         
         key_string = self.key_path.read_text().strip()
         return ZeroEnvCrypto.string_to_key(key_string)
+    
+    def get_security_tier(self) -> str:
+        """
+        Get the security tier from .secrets file
+        
+        Returns:
+            Security tier ('standard', 'enhanced', or 'max')
+        """
+        data = self.load_secrets_file()
+        # Default to 'standard' for backward compatibility
+        return data.get("security_tier", "standard")
+    
+    def get_salt(self) -> Optional[bytes]:
+        """
+        Get the salt from .secrets file
+        
+        Returns:
+            Salt bytes or None if standard tier
+        """
+        data = self.load_secrets_file()
+        salt_string = data.get("salt")
+        if salt_string:
+            return ZeroEnvCrypto.string_to_key(salt_string)
+        return None
+    
+    def load_encryption_key(self) -> bytes:
+        """
+        Load and derive the encryption key based on security tier
+        
+        Returns:
+            Derived encryption key ready for use with AESGCM
+        """
+        master_key = self.load_master_key()
+        tier = self.get_security_tier()
+        salt = self.get_salt()
+        
+        return ZeroEnvCrypto.derive_key(master_key, tier, salt)
     
     def load_secrets_file(self) -> dict:
         """

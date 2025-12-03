@@ -67,11 +67,22 @@ def main():
 
 @main.command()
 @click.option('--directory', '-d', default='.', help='Directory to initialize')
-def init(directory):
+@click.option(
+    '--tier',
+    type=click.Choice(['standard', 'enhanced', 'max'], case_sensitive=False),
+    default='standard',
+    help='Security tier: standard (fast), enhanced (100k iterations), max (500k iterations)'
+)
+def init(directory, tier):
     """
     Initialize ZeroEnv in the current directory
     
     Creates .secrets (encrypted storage) and .secrets.key (master key).
+    
+    Security Tiers:
+      standard - Direct key usage, fastest (development)
+      enhanced - PBKDF2 100k iterations (balanced)
+      max      - PBKDF2 500k iterations (production)
     """
     storage = SecretsStorage(directory)
     
@@ -81,15 +92,15 @@ def init(directory):
         ui.print_info(f"Found: {storage.key_path}")
         sys.exit(1)
 
-    # Generate master key and initialize the secrets storage
+    # Generate master key and initialize the secrets storage with tier
     master_key = generate_master_key()
-    storage.initialize(master_key)
+    storage.initialize(master_key, tier=tier.lower())
     
     # Update .gitignore to exclude master key from version control
     update_gitignore(directory)
     
-    # Show success message
-    ui.print_init_success()
+    # Show success message with tier info
+    ui.print_init_success(tier.lower())
 
 
 @main.command()
@@ -112,9 +123,9 @@ def add(name, value, directory):
         ui.print_error("ZeroEnv not initialized. Run 'zeroenv init'.")
         sys.exit(1)
     
-    # Load master key and encrypted storage
-    master_key = storage.load_master_key()
-    crypto = ZeroEnvCrypto(master_key)
+    # Load encryption key (derived from master key based on tier)
+    encryption_key = storage.load_encryption_key()
+    crypto = ZeroEnvCrypto(encryption_key)
     
     # Interactive mode if no name provided
     if not name:
@@ -147,9 +158,9 @@ def get(name, directory, show):
         ui.print_error("ZeroEnv not initialized. Run 'zeroenv init' first.")
         sys.exit(1)
     
-    # Load master key and encrypted storage
-    master_key = storage.load_master_key()
-    crypto = ZeroEnvCrypto(master_key)
+    # Load encryption key (derived from master key based on tier)
+    encryption_key = storage.load_encryption_key()
+    crypto = ZeroEnvCrypto(encryption_key)
     
     # Get secret
     value = storage.get_secret(crypto, name)
@@ -185,16 +196,17 @@ def list_secrets(directory, values):
     # Prepare secrets dictionary based on --values flag
     secrets = {}
     if values:
-        # Load master key and encrypted storage, then add secrets to dict
-        master_key = storage.load_master_key()
-        crypto = ZeroEnvCrypto(master_key)
+        # Load encryption key (derived from master key based on tier)
+        encryption_key = storage.load_encryption_key()
+        crypto = ZeroEnvCrypto(encryption_key)
         secrets = storage.get_all_secrets(crypto)
     else:
         # List the secret names but mask their value
         secrets = {name: "***" for name in storage.list_secrets()}
     
     # Display secrets table with imported function
-    ui.print_secrets_table(secrets, show_values=values)
+    tier = storage.get_security_tier()
+    ui.print_secrets_table(secrets, show_values=values, tier=tier)
 
 
 @main.command()
@@ -250,9 +262,9 @@ def run(command, directory):
         ui.print_error("ZeroEnv not initialized. Run 'zeroenv init' first.")
         sys.exit(1)
     
-    # Load master key and encrypted storage, then add secrets to dict
-    master_key = storage.load_master_key()
-    crypto = ZeroEnvCrypto(master_key)
+    # Load encryption key (derived from master key based on tier)
+    encryption_key = storage.load_encryption_key()
+    crypto = ZeroEnvCrypto(encryption_key)
     secrets = storage.get_all_secrets(crypto)
     
     # Prepare environment
@@ -301,9 +313,9 @@ def export(directory, format):
         ui.print_error("ZeroEnv not initialized. Run 'zeroenv init' first.")
         sys.exit(1)
     
-    # Load master key and encrypted storage, then add secrets to dict
-    master_key = storage.load_master_key()
-    crypto = ZeroEnvCrypto(master_key)
+    # Load encryption key (derived from master key based on tier)
+    encryption_key = storage.load_encryption_key()
+    crypto = ZeroEnvCrypto(encryption_key)
     secrets = storage.get_all_secrets(crypto)
     
     # Export secrets in the requested format
@@ -318,6 +330,30 @@ def export(directory, format):
         # Output in JSON format with indentation
         import json
         print(json.dumps(secrets, indent=2))
+
+
+@main.command()
+@click.option('--directory', '-d', default='.', help='Directory with ZeroEnv')
+def info(directory):
+    """
+    Display ZeroEnv configuration and security tier information
+    
+    Usage:
+      zeroenv info
+    """
+    storage = SecretsStorage(directory)
+    
+    # Check if initialized
+    if not storage.is_initialized():
+        ui.print_error("ZeroEnv not initialized. Run 'zeroenv init' first.")
+        sys.exit(1)
+    
+    # Get tier and secrets count
+    tier = storage.get_security_tier()
+    secrets_count = len(storage.list_secrets())
+    
+    # Display info panel
+    ui.print_info_panel(tier, secrets_count, directory)
 
 
 if __name__ == '__main__':

@@ -86,3 +86,103 @@ class TestZeroEnvCrypto:
         
         key_back = ZeroEnvCrypto.string_to_key(key_str)
         assert key_back == key
+
+
+class TestSecurityTiers:
+    """Tests for security tier functionality"""
+    
+    @pytest.fixture
+    def master_key(self):
+        return generate_master_key()
+    
+    def test_security_tiers_defined(self):
+        """Test that all security tiers are properly defined"""
+        assert 'standard' in ZeroEnvCrypto.SECURITY_TIERS
+        assert 'enhanced' in ZeroEnvCrypto.SECURITY_TIERS
+        assert 'max' in ZeroEnvCrypto.SECURITY_TIERS
+        
+        # Check tier configurations
+        assert ZeroEnvCrypto.SECURITY_TIERS['standard']['iterations'] == 0
+        assert ZeroEnvCrypto.SECURITY_TIERS['enhanced']['iterations'] == 100000
+        assert ZeroEnvCrypto.SECURITY_TIERS['max']['iterations'] == 500000
+    
+    def test_generate_salt(self):
+        """Test salt generation"""
+        salt = ZeroEnvCrypto.generate_salt()
+        assert isinstance(salt, bytes)
+        assert len(salt) == 16  # SALT_SIZE
+        
+        # Test uniqueness
+        salt2 = ZeroEnvCrypto.generate_salt()
+        assert salt != salt2
+    
+    def test_derive_key_standard(self, master_key):
+        """Test key derivation with standard tier (no PBKDF2)"""
+        derived = ZeroEnvCrypto.derive_key(master_key, tier='standard')
+        assert derived == master_key  # Should be identical
+        assert len(derived) == 32
+    
+    def test_derive_key_enhanced(self, master_key):
+        """Test key derivation with enhanced tier"""
+        salt = ZeroEnvCrypto.generate_salt()
+        derived = ZeroEnvCrypto.derive_key(master_key, tier='enhanced', salt=salt)
+        
+        assert len(derived) == 32
+        assert derived != master_key  # Should be different from master
+        
+        # Test deterministic - same inputs produce same output
+        derived2 = ZeroEnvCrypto.derive_key(master_key, tier='enhanced', salt=salt)
+        assert derived == derived2
+    
+    def test_derive_key_max(self, master_key):
+        """Test key derivation with max tier"""
+        salt = ZeroEnvCrypto.generate_salt()
+        derived = ZeroEnvCrypto.derive_key(master_key, tier='max', salt=salt)
+        
+        assert len(derived) == 32
+        assert derived != master_key  # Should be different from master
+    
+    def test_derive_key_different_tiers_different_keys(self, master_key):
+        """Test that different tiers produce different derived keys"""
+        salt = ZeroEnvCrypto.generate_salt()
+        
+        standard = ZeroEnvCrypto.derive_key(master_key, tier='standard')
+        enhanced = ZeroEnvCrypto.derive_key(master_key, tier='enhanced', salt=salt)
+        max_key = ZeroEnvCrypto.derive_key(master_key, tier='max', salt=salt)
+        
+        # All should be different
+        assert standard != enhanced
+        assert standard != max_key
+        assert enhanced != max_key
+    
+    def test_derive_key_invalid_tier(self, master_key):
+        """Test error with invalid tier"""
+        with pytest.raises(ValueError, match="Invalid security tier"):
+            ZeroEnvCrypto.derive_key(master_key, tier='invalid')
+    
+    def test_derive_key_missing_salt(self, master_key):
+        """Test error when salt is missing for non-standard tiers"""
+        with pytest.raises(ValueError, match="Salt required"):
+            ZeroEnvCrypto.derive_key(master_key, tier='enhanced', salt=None)
+        
+        with pytest.raises(ValueError, match="Salt required"):
+            ZeroEnvCrypto.derive_key(master_key, tier='max', salt=None)
+    
+    def test_derive_key_invalid_salt_size(self, master_key):
+        """Test error with wrong salt size"""
+        wrong_salt = os.urandom(8)  # Wrong size
+        with pytest.raises(ValueError, match="Salt must be 16 bytes"):
+            ZeroEnvCrypto.derive_key(master_key, tier='enhanced', salt=wrong_salt)
+    
+    def test_encrypt_decrypt_with_derived_key(self, master_key):
+        """Test that encryption/decryption works with derived keys"""
+        salt = ZeroEnvCrypto.generate_salt()
+        derived_key = ZeroEnvCrypto.derive_key(master_key, tier='enhanced', salt=salt)
+        
+        crypto = ZeroEnvCrypto(derived_key)
+        plaintext = "sensitive_data"
+        
+        encrypted = crypto.encrypt(plaintext)
+        decrypted = crypto.decrypt(encrypted)
+        
+        assert decrypted == plaintext

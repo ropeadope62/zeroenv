@@ -62,10 +62,17 @@ pip install -e .
 ### Initialize
 
 ```bash
-zeroenv init
+zeroenv init                    # Standard tier (fast, development)
+zeroenv init --tier enhanced    # Enhanced security (100k iterations)
+zeroenv init --tier max         # Maximum security (500k iterations, production)
 ```
 
 Creates `.secrets` (encrypted) and `.secrets.key` (master key). Automatically updates `.gitignore`.
+
+**Security Tiers:**
+- **Standard**: Direct key usage, fastest performance (development)
+- **Enhanced**: PBKDF2-SHA256 with 100k iterations (balanced security/performance)
+- **Max**: PBKDF2-SHA256 with 500k iterations (production environments)
 
 ### Add Secrets
 
@@ -116,6 +123,19 @@ zeroenv export -f json  # JSON format
 zeroenv rm SECRET_NAME
 ```
 
+### View Configuration
+
+```bash
+zeroenv info
+```
+
+Displays:
+- Security tier and description
+- PBKDF2 iteration count
+- Encryption algorithm (AES-256-GCM)
+- Number of secrets stored
+- File locations
+
 ## How It Works
 
 ### Two-File System
@@ -123,10 +143,13 @@ zeroenv rm SECRET_NAME
 **`.secrets`** - Encrypted secrets (safe to commit)
 ```json
 {
+  "version": "1.0",
+  "security_tier": "enhanced",
+  "salt": "xY9zA1bC2dE3fG4h...",
   "secrets": {
     "API_KEY": {
       "ciphertext": "aB3dE5fG7hI9jK1...",
-      "nonce": "xY9zA1bC2dE3fG4h"
+      "nonce": "pQ6rS8tU0vW1xY2z..."
     }
   }
 }
@@ -139,10 +162,16 @@ aB3dE5fG7hI9jK1lM2nO4pQ6rS8tU0vW1xY2zA3bC4dE5f=
 
 ### Encryption
 
-- Algorithm: AES-256-GCM
-- Key size: 256 bits
-- Nonce size: 96 bits (unique per secret)
-- Authenticated encryption (tamper-proof)
+- **Algorithm:** AES-256-GCM
+- **Key size:** 256 bits
+- **Nonce size:** 96 bits (unique per secret)
+- **Authenticated encryption:** Tamper-proof
+- **Key derivation:** PBKDF2-HMAC-SHA256 (enhanced/max tiers)
+- **KDF iterations:** 100k (enhanced) or 500k (max)
+
+The encryption process varies by security tier:
+- **Standard:** Master key → AES-256-GCM encryption
+- **Enhanced/Max:** Master key + salt → PBKDF2 → Derived key → AES-256-GCM encryption
 
 ## Team Usage
 
@@ -247,6 +276,30 @@ services:
 
 ## Examples
 
+### Basic Usage
+
+```bash
+# Initialize with enhanced security
+zeroenv init --tier enhanced
+
+# Check configuration
+zeroenv info
+# Output:
+# ╭─────────────── ZeroEnv Configuration ───────────────╮
+# │ Security Tier: Enhanced                             │
+# │ PBKDF2 Iterations: 100,000 iterations               │
+# │ Encryption: AES-256-GCM                             │
+# │ Secrets Stored: 0                                   │
+# ╰─────────────────────────────────────────────────────╯
+
+# Add secrets
+zeroenv add API_KEY "sk_test_1234"
+zeroenv add DATABASE_URL "postgresql://localhost/db"
+
+# Verify
+zeroenv ls --values
+```
+
 ### Django
 ```bash
 zeroenv init
@@ -279,17 +332,56 @@ zeroenv run dotnet run
 - **Nonce generation:** 96-bit random nonce per encryption
 - **Library:** Python `cryptography` package
 
+### Security Tiers
+
+ZeroEnv offers three security tiers to balance performance and security:
+
+#### Standard (Default)
+- **Iterations:** 0 (direct key usage)
+- **Performance:** Fastest
+- **Use case:** Development, local testing
+- **Security:** Strong encryption with AES-256-GCM
+
+```bash
+zeroenv init  # or explicitly: zeroenv init --tier standard
+```
+
+#### Enhanced
+- **Iterations:** 100,000 (PBKDF2-HMAC-SHA256)
+- **Performance:** Moderate (~100ms key derivation)
+- **Use case:** Shared projects, small teams
+- **Security:** Resistant to brute-force attacks on weak keys
+
+```bash
+zeroenv init --tier enhanced
+```
+
+#### Max
+- **Iterations:** 500,000 (PBKDF2-HMAC-SHA256)
+- **Performance:** Slower (~500ms key derivation)
+- **Use case:** Production environments, sensitive data
+- **Security:** Maximum protection against brute-force attacks
+
+```bash
+zeroenv init --tier max
+```
+
+**Note:** Security tier is set during initialization and stored in `.secrets`. All subsequent operations (add, get, run, export) automatically use the configured tier. Existing secrets files without a tier default to `standard` for backward compatibility.
+- **Nonce generation:** 96-bit random nonce per encryption
+- **Library:** Python `cryptography` package
+
 ## Command Reference
 
 | Command | Description |
 |---------|-------------|
-| `init` | Initialize ZeroEnv in project |
+| `init [--tier TIER]` | Initialize ZeroEnv in project (standard/enhanced/max) |
 | `add NAME [VALUE]` | Add or update secret |
 | `get NAME` | Retrieve secret value |
 | `ls [--values]` | List secrets |
 | `rm NAME` | Remove secret |
 | `run COMMAND` | Run command with secrets |
 | `export [-f FORMAT]` | Export secrets |
+| `info` | Display security tier and configuration |
 
 ## Dependencies
 
