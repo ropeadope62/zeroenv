@@ -1,0 +1,17 @@
+LICENSE
+README.md
+pyproject.toml
+src/zeroenv/__init__.py
+src/zeroenv/cli.py
+src/zeroenv/crypto.py
+src/zeroenv/storage.py
+src/zeroenv/ui.py
+src/zeroenv.egg-info/PKG-INFO
+src/zeroenv.egg-info/SOURCES.txt
+src/zeroenv.egg-info/dependency_links.txt
+src/zeroenv.egg-info/entry_points.txt
+src/zeroenv.egg-info/requires.txt
+src/zeroenv.egg-info/top_level.txt
+tests/test_cli.py
+tests/test_crypto.py
+tests/test_storage.py

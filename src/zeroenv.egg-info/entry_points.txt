@@ -1,0 +1,2 @@
+[console_scripts]
+zeroenv = zeroenv.cli:main
