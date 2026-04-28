@@ -9,7 +9,7 @@ https://github.com/ropeadope62
 import pytest
 import base64
 import os
-from zeroenv.crypto import ZeroEnvCrypto, generate_master_key
+from zeroenv.crypto import ZeroEnvCrypto, SecurityTier, generate_master_key
 
 class TestZeroEnvCrypto:
     @pytest.fixture
@@ -186,3 +186,143 @@ class TestSecurityTiers:
         decrypted = crypto.decrypt(encrypted)
         
         assert decrypted == plaintext
+
+
+class TestSecurityTierEnum:
+    """Tests for the SecurityTier enum"""
+
+    def test_enum_values(self):
+        """Test that SecurityTier enum has the correct values"""
+        assert SecurityTier.standard == 'standard'
+        assert SecurityTier.enhanced == 'enhanced'
+        assert SecurityTier.max == 'max'
+
+    def test_enum_members(self):
+        """Test that all expected members exist"""
+        members = {tier.value for tier in SecurityTier}
+        assert members == {'standard', 'enhanced', 'max'}
+
+    def test_enum_is_string(self):
+        """Test that SecurityTier values behave as strings"""
+        assert isinstance(SecurityTier.standard, str)
+        assert SecurityTier.enhanced == 'enhanced'
+
+    def test_enum_from_value(self):
+        """Test creating enum from string value"""
+        assert SecurityTier('standard') is SecurityTier.standard
+        assert SecurityTier('enhanced') is SecurityTier.enhanced
+        assert SecurityTier('max') is SecurityTier.max
+
+
+class TestZeroEnvCryptoInitWithTier:
+    """Tests for ZeroEnvCrypto.__init__ with tier and salt parameters"""
+
+    @pytest.fixture
+    def master_key(self):
+        return generate_master_key()
+
+    def test_init_standard_tier_default(self, master_key):
+        """Test that standard tier (default) uses key directly (no PBKDF2)"""
+        crypto_default = ZeroEnvCrypto(master_key)
+        crypto_explicit = ZeroEnvCrypto(master_key, tier='standard')
+        # Both should encrypt/decrypt the same data interchangeably
+        plaintext = "standard_secret"
+        encrypted = crypto_default.encrypt(plaintext)
+        assert crypto_explicit.decrypt(encrypted) == plaintext
+
+    def test_init_standard_tier_explicit(self, master_key):
+        """Test explicit standard tier initialization"""
+        crypto = ZeroEnvCrypto(master_key, tier='standard')
+        assert crypto.decrypt(crypto.encrypt("test")) == "test"
+
+    def test_init_enhanced_tier_with_salt(self, master_key):
+        """Test enhanced tier initialization with salt"""
+        salt = ZeroEnvCrypto.generate_salt()
+        crypto = ZeroEnvCrypto(master_key, tier='enhanced', salt=salt)
+        # Should be able to encrypt and decrypt
+        plaintext = "enhanced_secret"
+        assert crypto.decrypt(crypto.encrypt(plaintext)) == plaintext
+
+    def test_init_max_tier_with_salt(self, master_key):
+        """Test max tier initialization with salt"""
+        salt = ZeroEnvCrypto.generate_salt()
+        crypto = ZeroEnvCrypto(master_key, tier='max', salt=salt)
+        # Should be able to encrypt and decrypt
+        plaintext = "max_secret"
+        assert crypto.decrypt(crypto.encrypt(plaintext)) == plaintext
+
+    def test_init_enhanced_tier_missing_salt_raises(self, master_key):
+        """Test that enhanced tier without salt raises ValueError"""
+        with pytest.raises(ValueError, match="Salt required"):
+            ZeroEnvCrypto(master_key, tier='enhanced', salt=None)
+
+    def test_init_max_tier_missing_salt_raises(self, master_key):
+        """Test that max tier without salt raises ValueError"""
+        with pytest.raises(ValueError, match="Salt required"):
+            ZeroEnvCrypto(master_key, tier='max', salt=None)
+
+    def test_init_with_security_tier_enum(self, master_key):
+        """Test that SecurityTier enum values work in __init__"""
+        salt = ZeroEnvCrypto.generate_salt()
+        crypto = ZeroEnvCrypto(master_key, tier=SecurityTier.enhanced, salt=salt)
+        plaintext = "enum_tier_secret"
+        assert crypto.decrypt(crypto.encrypt(plaintext)) == plaintext
+
+    def test_encrypt_decrypt_standard_via_init(self, master_key):
+        """Test encrypt/decrypt with standard tier via __init__"""
+        crypto = ZeroEnvCrypto(master_key, tier='standard')
+        plaintext = "standard_secret"
+        assert crypto.decrypt(crypto.encrypt(plaintext)) == plaintext
+
+    def test_encrypt_decrypt_enhanced_via_init(self, master_key):
+        """Test encrypt/decrypt with enhanced tier via __init__"""
+        salt = ZeroEnvCrypto.generate_salt()
+        crypto = ZeroEnvCrypto(master_key, tier='enhanced', salt=salt)
+        plaintext = "enhanced_secret"
+        assert crypto.decrypt(crypto.encrypt(plaintext)) == plaintext
+
+    def test_encrypt_decrypt_max_via_init(self, master_key):
+        """Test encrypt/decrypt with max tier via __init__"""
+        salt = ZeroEnvCrypto.generate_salt()
+        crypto = ZeroEnvCrypto(master_key, tier='max', salt=salt)
+        plaintext = "max_secret"
+        assert crypto.decrypt(crypto.encrypt(plaintext)) == plaintext
+
+    def test_different_tiers_incompatible(self, master_key):
+        """Test that data encrypted with one tier cannot be decrypted with another"""
+        salt = ZeroEnvCrypto.generate_salt()
+        crypto_standard = ZeroEnvCrypto(master_key, tier='standard')
+        crypto_enhanced = ZeroEnvCrypto(master_key, tier='enhanced', salt=salt)
+
+        encrypted = crypto_standard.encrypt("secret")
+        with pytest.raises(Exception):
+            crypto_enhanced.decrypt(encrypted)
+
+
+class TestSaltConversionMethods:
+    """Tests for salt_to_string and string_to_salt conversion methods"""
+
+    def test_salt_to_string_returns_str(self):
+        """Test that salt_to_string returns a string"""
+        salt = ZeroEnvCrypto.generate_salt()
+        result = ZeroEnvCrypto.salt_to_string(salt)
+        assert isinstance(result, str)
+
+    def test_string_to_salt_returns_bytes(self):
+        """Test that string_to_salt returns bytes"""
+        salt = ZeroEnvCrypto.generate_salt()
+        salt_str = ZeroEnvCrypto.salt_to_string(salt)
+        result = ZeroEnvCrypto.string_to_salt(salt_str)
+        assert isinstance(result, bytes)
+
+    def test_salt_roundtrip(self):
+        """Test that salt survives a to_string/from_string roundtrip"""
+        salt = ZeroEnvCrypto.generate_salt()
+        assert ZeroEnvCrypto.string_to_salt(ZeroEnvCrypto.salt_to_string(salt)) == salt
+
+    def test_salt_to_string_is_valid_base64(self):
+        """Test that salt_to_string produces valid base64"""
+        salt = ZeroEnvCrypto.generate_salt()
+        salt_str = ZeroEnvCrypto.salt_to_string(salt)
+        decoded = base64.b64decode(salt_str)
+        assert decoded == salt

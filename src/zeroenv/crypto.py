@@ -7,10 +7,18 @@ https://github.com/ropeadope62
 
 import os
 import base64
+from enum import Enum
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
 from cryptography.hazmat.backends import default_backend
+
+
+class SecurityTier(str, Enum):
+    """Security tier for PBKDF2 key derivation"""
+    standard = 'standard'
+    enhanced = 'enhanced'
+    max = 'max'
 
 
 
@@ -48,17 +56,33 @@ class ZeroEnvCrypto:
     
     SALT_SIZE = 16  # 128 bits for PBKDF2 salt
     
-    def __init__(self, master_key: bytes):
+    def __init__(self, master_key: bytes, tier: "str | SecurityTier" = 'standard', salt: bytes = None):
         """
         Initialize crypto with master key
-        
+
         Args:
             master_key: 32-byte encryption key
+            tier: Security tier ('standard', 'enhanced', or 'max'), or SecurityTier enum value
+            salt: Salt for PBKDF2 key derivation (required for non-standard tiers)
         """
         if len(master_key) != self.KEY_SIZE:
             raise ValueError(f"Master key must be {self.KEY_SIZE} bytes")
-        
-        self.aesgcm = AESGCM(master_key)
+
+        self._master_key = master_key
+        self._tier = tier.value if isinstance(tier, SecurityTier) else tier
+        self._salt = salt
+
+        encryption_key = self._derive_key()
+        self.aesgcm = AESGCM(encryption_key)
+
+    def _derive_key(self) -> bytes:
+        """
+        Derive encryption key from master key using configured security tier
+
+        Returns:
+            Derived key bytes (same as master key for standard tier)
+        """
+        return ZeroEnvCrypto.derive_key(self._master_key, self._tier, self._salt)
     
     def encrypt(self, plaintext: str) -> dict:
         """
@@ -194,6 +218,32 @@ class ZeroEnvCrypto:
             Key bytes
         """
         return base64.b64decode(key_string)
+
+    @staticmethod
+    def salt_to_string(salt: bytes) -> str:
+        """
+        Convert salt bytes to base64 string for storage
+
+        Args:
+            salt: Salt bytes
+
+        Returns:
+            Base64-encoded salt string
+        """
+        return base64.b64encode(salt).decode('utf-8')
+
+    @staticmethod
+    def string_to_salt(salt_string: str) -> bytes:
+        """
+        Convert base64 salt string back to bytes
+
+        Args:
+            salt_string: Base64-encoded salt
+
+        Returns:
+            Salt bytes
+        """
+        return base64.b64decode(salt_string)
 
 
 def generate_master_key() -> bytes:
