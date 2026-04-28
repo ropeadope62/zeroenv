@@ -55,7 +55,7 @@ class TestSecretsStorage:
         
         # Verify secrets file content
         data = json.loads(storage.secrets_path.read_text())
-        assert data['version'] == "1.0"
+        assert data['version'] == "1.1"
         assert data['secrets'] == {}
 
     def test_load_master_key(self, storage, master_key):
@@ -284,3 +284,158 @@ class TestSecurityTiers:
         storage.add_secret(crypto, "OLD_SECRET", "old_value")
         retrieved = storage.get_secret(crypto, "OLD_SECRET")
         assert retrieved == "old_value"
+
+
+class TestCreateCrypto:
+    """Tests for create_crypto() convenience method"""
+
+    @pytest.fixture
+    def temp_dir(self, tmp_path):
+        return str(tmp_path)
+
+    @pytest.fixture
+    def master_key(self):
+        return generate_master_key()
+
+    def test_create_crypto_standard_tier(self, temp_dir, master_key):
+        """create_crypto() returns a working ZeroEnvCrypto for standard tier"""
+        storage = SecretsStorage(temp_dir)
+        storage.initialize(master_key, tier='standard')
+
+        crypto = storage.create_crypto()
+        assert isinstance(crypto, ZeroEnvCrypto)
+
+        # Should be able to encrypt and decrypt
+        encrypted = crypto.encrypt("test_value")
+        assert crypto.decrypt(encrypted) == "test_value"
+
+    def test_create_crypto_enhanced_tier(self, temp_dir, master_key):
+        """create_crypto() returns a correctly derived ZeroEnvCrypto for enhanced tier"""
+        storage = SecretsStorage(temp_dir)
+        storage.initialize(master_key, tier='enhanced')
+
+        crypto = storage.create_crypto()
+        assert isinstance(crypto, ZeroEnvCrypto)
+
+        # Verify round-trip encryption
+        encrypted = crypto.encrypt("secure_value")
+        assert crypto.decrypt(encrypted) == "secure_value"
+
+    def test_create_crypto_max_tier(self, temp_dir, master_key):
+        """create_crypto() returns a correctly derived ZeroEnvCrypto for max tier"""
+        storage = SecretsStorage(temp_dir)
+        storage.initialize(master_key, tier='max')
+
+        crypto = storage.create_crypto()
+        assert isinstance(crypto, ZeroEnvCrypto)
+
+        encrypted = crypto.encrypt("max_secret")
+        assert crypto.decrypt(encrypted) == "max_secret"
+
+    def test_create_crypto_consistent(self, temp_dir, master_key):
+        """create_crypto() is deterministic - two calls produce compatible instances"""
+        storage = SecretsStorage(temp_dir)
+        storage.initialize(master_key, tier='enhanced')
+
+        crypto1 = storage.create_crypto()
+        encrypted = crypto1.encrypt("consistent_value")
+
+        # A fresh instance should decrypt the same ciphertext
+        crypto2 = storage.create_crypto()
+        assert crypto2.decrypt(encrypted) == "consistent_value"
+
+    def test_create_crypto_can_add_and_get_secrets(self, temp_dir, master_key):
+        """create_crypto() result can be used with add_secret / get_secret"""
+        storage = SecretsStorage(temp_dir)
+        storage.initialize(master_key, tier='enhanced')
+
+        crypto = storage.create_crypto()
+        storage.add_secret(crypto, "KEY", "value123")
+        assert storage.get_secret(crypto, "KEY") == "value123"
+
+
+class TestGetProjectInfo:
+    """Tests for get_project_info() method"""
+
+    @pytest.fixture
+    def temp_dir(self, tmp_path):
+        return str(tmp_path)
+
+    @pytest.fixture
+    def master_key(self):
+        return generate_master_key()
+
+    def test_get_project_info_keys(self, temp_dir, master_key):
+        """get_project_info() returns all expected keys"""
+        storage = SecretsStorage(temp_dir)
+        storage.initialize(master_key)
+
+        info = storage.get_project_info()
+        assert "version" in info
+        assert "created_at" in info
+        assert "security_tier" in info
+        assert "secrets_count" in info
+        assert "directory" in info
+
+    def test_get_project_info_version(self, temp_dir, master_key):
+        """get_project_info() reports version 1.1 for newly created files"""
+        storage = SecretsStorage(temp_dir)
+        storage.initialize(master_key)
+
+        info = storage.get_project_info()
+        assert info["version"] == "1.1"
+
+    def test_get_project_info_standard_tier(self, temp_dir, master_key):
+        """get_project_info() reports correct tier for standard"""
+        storage = SecretsStorage(temp_dir)
+        storage.initialize(master_key, tier='standard')
+
+        info = storage.get_project_info()
+        assert info["security_tier"] == "standard"
+
+    def test_get_project_info_enhanced_tier(self, temp_dir, master_key):
+        """get_project_info() reports correct tier for enhanced"""
+        storage = SecretsStorage(temp_dir)
+        storage.initialize(master_key, tier='enhanced')
+
+        info = storage.get_project_info()
+        assert info["security_tier"] == "enhanced"
+
+    def test_get_project_info_secrets_count(self, temp_dir, master_key):
+        """get_project_info() returns correct secrets count"""
+        storage = SecretsStorage(temp_dir)
+        storage.initialize(master_key)
+
+        crypto = storage.create_crypto()
+        storage.add_secret(crypto, "A", "1")
+        storage.add_secret(crypto, "B", "2")
+
+        info = storage.get_project_info()
+        assert info["secrets_count"] == 2
+
+    def test_get_project_info_directory(self, temp_dir, master_key):
+        """get_project_info() returns the storage directory"""
+        storage = SecretsStorage(temp_dir)
+        storage.initialize(master_key)
+
+        info = storage.get_project_info()
+        assert info["directory"] == temp_dir
+
+    def test_get_project_info_backward_compatible(self, temp_dir, master_key):
+        """get_project_info() works with legacy v1.0 files"""
+        storage = SecretsStorage(temp_dir)
+
+        # Write a v1.0 style file (no security_tier)
+        storage.key_path.write_text(ZeroEnvCrypto.key_to_string(master_key))
+        old_data = {
+            "version": "1.0",
+            "created_at": "2023-01-01T00:00:00",
+            "secrets": {}
+        }
+        storage.save_secrets_file(old_data)
+
+        info = storage.get_project_info()
+        assert info["version"] == "1.0"
+        assert info["security_tier"] == "standard"
+        assert info["secrets_count"] == 0
+
