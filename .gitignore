@@ -1,2 +1,10 @@
 # ZeroEnv master key
 .secrets.key
+
+# Python build artifacts
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+dist/
+build/

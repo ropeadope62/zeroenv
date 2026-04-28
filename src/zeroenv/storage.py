@@ -51,7 +51,7 @@ class SecretsStorage:
         
         # Create the baseline .secrets file with metadata
         initial_data = {
-            "version": "1.0",
+            "version": "1.1",
             "created_at": datetime.now().isoformat(),
             "security_tier": tier,
             "secrets": {}
@@ -128,6 +128,33 @@ class SecretsStorage:
         salt = self.get_salt()
         
         return ZeroEnvCrypto.derive_key(master_key, tier, salt)
+    
+    def create_crypto(self) -> ZeroEnvCrypto:
+        """
+        Build a ZeroEnvCrypto instance configured for the stored security tier and salt
+        
+        Returns:
+            ZeroEnvCrypto instance ready for encrypt/decrypt operations
+        """
+        encryption_key = self.load_encryption_key()
+        return ZeroEnvCrypto(encryption_key)
+    
+    def get_project_info(self) -> dict:
+        """
+        Get project configuration information for the info command
+        
+        Returns:
+            Dictionary with version, created_at, security_tier, secrets_count,
+            and directory path
+        """
+        data = self.load_secrets_file()
+        return {
+            "version": data.get("version", "1.0"),
+            "created_at": data.get("created_at", "unknown"),
+            "security_tier": data.get("security_tier", "standard"),
+            "secrets_count": len(data.get("secrets", {})),
+            "directory": str(self.directory),
+        }
     
     def load_secrets_file(self) -> dict:
         """
